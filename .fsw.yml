@@ -8,7 +8,7 @@ triggers:
     DEBUG: "1"
   # if shell is true, $cmd will be wrapped with `bash -c`
   shell: true
-  cmd: go test -v
+  cmd: go test 
   delay: 100ms
   signal: "KILL"
 watch_paths:

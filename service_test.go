@@ -6,31 +6,38 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/api/calendar/v3"
 	"log"
-	"os"
 	"testing"
 	"time"
 )
 
 var (
-	srv       *calendar.Service
-	calendars []string
+	testService *calendar.Service
+	calendars   []string
+	serviceImpl = new(serviceimpl)
 )
 
 func TestGetClient(t *testing.T) {
 	t.Skip("Skipping TestGetClient")
 	ctx := context.TODO()
-	client := GetClient(ctx)
-	head, _ := client.Head("https://www.googleapis.com/calendar/v3/users/me/calendarList")
+	client := serviceImpl.GetClient(ctx)
+	head, _ := client.Head("https://www.googleapiserviceImpl.com/calendar/v3/users/me/calendarList")
 	assert.Equal(t, 200, head.StatusCode, "Status code should be 200")
 }
 
 func TestListCalendars(t *testing.T) {
 	t.Skip("Skipping TestListCalendars")
 	name, _ := randutil.AlphaString(10)
-	testCalendar := CreateCalendar(srv, name)
+	testCalendar, err := serviceImpl.CreateCalendar(testService, name)
+	if err != nil {
+		t.Fatal(err)
+	}
 	calendars = append(calendars, testCalendar.Id)
 
-	calList := ListCalendars(srv)
+	calList, err := serviceImpl.ListCalendars(testService)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	containsCalendar := false
 	for _, calendar := range calList {
 		containsCalendar = calendar.Id == testCalendar.Id
@@ -44,7 +51,11 @@ func TestListCalendars(t *testing.T) {
 func TestCreateCalendar(t *testing.T) {
 	t.Skip("Skipping TestCreateCalendar")
 	name, _ := randutil.AlphaString(10)
-	testCalendar := CreateCalendar(srv, name)
+	testCalendar, err := serviceImpl.CreateCalendar(testService, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	calendars = append(calendars, testCalendar.Id)
 	assert.Equal(t, testCalendar.Summary, name, "CreateCalendar should create calendar with specified name")
 }
@@ -52,7 +63,10 @@ func TestCreateCalendar(t *testing.T) {
 func TestInsertEvent(t *testing.T) {
 	t.Skip("Skipping TestInsertEvent")
 	calendarName, _ := randutil.AlphaString(10)
-	testCalendar := CreateCalendar(srv, calendarName)
+	testCalendar, err := serviceImpl.CreateCalendar(testService, calendarName)
+	if err != nil {
+		t.Fatal(err)
+	}
 	calendars = append(calendars, testCalendar.Id)
 
 	start, end := RandDateRange()
@@ -61,7 +75,10 @@ func TestInsertEvent(t *testing.T) {
 	dateRange := new(DateRange)
 	dateRange.Start = startStr
 	dateRange.End = endStr
-	testEvent := InsertEvent(srv, testCalendar, dateRange)
+	testEvent, err := serviceImpl.InsertEvent(testService, testCalendar, dateRange)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	assert.Equal(t, testEvent.Start.DateTime, startStr, "InsertEvent start time should be startStr")
 	assert.Equal(t, testEvent.End.DateTime, endStr, "InsertEvent end time should be endStr")
@@ -70,7 +87,10 @@ func TestInsertEvent(t *testing.T) {
 func TestListEvents(t *testing.T) {
 	t.Skip("Skipping TestListEvents")
 	calendarName, _ := randutil.AlphaString(10)
-	testCalendar := CreateCalendar(srv, calendarName)
+	testCalendar, err := serviceImpl.CreateCalendar(testService, calendarName)
+	if err != nil {
+		t.Fatal(err)
+	}
 	calendars = append(calendars, testCalendar.Id)
 
 	start, end := RandDateRange()
@@ -79,9 +99,16 @@ func TestListEvents(t *testing.T) {
 	dateRange := new(DateRange)
 	dateRange.Start = startStr
 	dateRange.End = endStr
-	testEvent := InsertEvent(srv, testCalendar, dateRange)
+	testEvent, err := serviceImpl.InsertEvent(testService, testCalendar, dateRange)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	eventList := ListEvents(srv, testCalendar.Id)
+	eventList, err := serviceImpl.ListEvents(testService, testCalendar.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	containsEvent := false
 	for _, event := range eventList {
 		containsEvent = event.Id == testEvent.Id
@@ -96,9 +123,15 @@ func TestListEvents(t *testing.T) {
 func TestDeleteCalendar(t *testing.T) {
 	t.Skip("Skipping TestDeleteCalendar")
 	calendarName, _ := randutil.AlphaString(10)
-	testCalendar := CreateCalendar(srv, calendarName)
+	testCalendar, err := serviceImpl.CreateCalendar(testService, calendarName)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	calList := ListCalendars(srv)
+	calList, err := serviceImpl.ListCalendars(testService)
+	if err != nil {
+		t.Fatal(err)
+	}
 	containsCalendar := false
 	for _, calendar := range calList {
 		containsCalendar = calendar.Id == testCalendar.Id
@@ -108,8 +141,11 @@ func TestDeleteCalendar(t *testing.T) {
 	}
 	assert.True(t, containsCalendar, "")
 
-	DeleteCalendar(srv, testCalendar.Id)
-	calList = ListCalendars(srv)
+	serviceImpl.DeleteCalendar(testService, testCalendar.Id)
+	calList, err = serviceImpl.ListCalendars(testService)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	for _, calendar := range calList {
 		containsCalendar = calendar.Id == testCalendar.Id
@@ -123,7 +159,10 @@ func TestDeleteCalendar(t *testing.T) {
 func TestUpdateEvent(t *testing.T) {
 	t.Skip("Skipping TestUpdateEvent")
 	calendarName, _ := randutil.AlphaString(10)
-	testCalendar := CreateCalendar(srv, calendarName)
+	testCalendar, err := serviceImpl.CreateCalendar(testService, calendarName)
+	if err != nil {
+		t.Fatal(err)
+	}
 	calendars = append(calendars, testCalendar.Id)
 	start, end := RandDateRange()
 	startStr := start.Format(time.RFC3339)
@@ -131,13 +170,19 @@ func TestUpdateEvent(t *testing.T) {
 	dateRange := new(DateRange)
 	dateRange.Start = startStr
 	dateRange.End = endStr
-	testEvent := InsertEvent(srv, testCalendar, dateRange)
+	testEvent, err := serviceImpl.InsertEvent(testService, testCalendar, dateRange)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	a := assert.New(t)
 	a.Equal(testEvent.Summary, testCalendar.Summary, "Event should be same name as calendar")
 	// change name without supplying dateRange arg
 	calendarName, _ = randutil.AlphaString(10)
-	evt := UpdateEvent(srv, testCalendar.Id, testEvent.Id, calendarName)
+	evt, err := serviceImpl.UpdateEvent(testService, testCalendar.Id, testEvent.Id, calendarName)
+	if err != nil {
+		t.Fatal(err)
+	}
 	a.NotEqual(testEvent.Summary, evt.Summary, "Updated event should not have the same name")
 	// change dateRange
 	start, end = RandDateRange()
@@ -147,7 +192,10 @@ func TestUpdateEvent(t *testing.T) {
 	dateRange.Start = startStr
 	dateRange.End = endStr
 
-	evt = UpdateEvent(srv, testCalendar.Id, testEvent.Id, calendarName, dateRange)
+	evt, err = serviceImpl.UpdateEvent(testService, testCalendar.Id, testEvent.Id, calendarName, dateRange)
+	if err != nil {
+		t.Fatal(err)
+	}
 	a.Equal(evt.Summary, calendarName, "Updated event should have the same name")
 	a.NotEqual(testEvent.Start.DateTime, evt.Start.DateTime, "Updated event should not have the same start datetime")
 	a.NotEqual(testEvent.End.DateTime, evt.End.DateTime, "Updated event should not have the same end datetime")
@@ -156,7 +204,10 @@ func TestUpdateEvent(t *testing.T) {
 func TestUpdateCalendar(t *testing.T) {
 	t.Skip("Skipping TestUpdateCalendar")
 	calendarName, _ := randutil.AlphaString(10)
-	testCalendar := CreateCalendar(srv, calendarName)
+	testCalendar, err := serviceImpl.CreateCalendar(testService, calendarName)
+	if err != nil {
+		t.Fatal(err)
+	}
 	calendars = append(calendars, testCalendar.Id)
 	start, end := RandDateRange()
 	startStr := start.Format(time.RFC3339)
@@ -179,9 +230,18 @@ func TestUpdateCalendar(t *testing.T) {
 	dateRange3.Start = startStr
 	dateRange3.End = endStr
 
-	testEvent1 := InsertEvent(srv, testCalendar, dateRange1)
-	testEvent2 := InsertEvent(srv, testCalendar, dateRange2)
-	testEvent3 := InsertEvent(srv, testCalendar, dateRange3)
+	testEvent1, err := serviceImpl.InsertEvent(testService, testCalendar, dateRange1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testEvent2, err := serviceImpl.InsertEvent(testService, testCalendar, dateRange2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testEvent3, err := serviceImpl.InsertEvent(testService, testCalendar, dateRange3)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	a := assert.New(t)
 	a.Equal(testCalendar.Summary, testEvent1.Summary, "Created event name should equal parent calendar name")
@@ -189,32 +249,36 @@ func TestUpdateCalendar(t *testing.T) {
 	a.Equal(testCalendar.Summary, testEvent3.Summary, "Created event name should equal parent calendar name")
 
 	calendarName, _ = randutil.AlphaString(10)
-	updatedCalendar := UpdateCalendar(srv, testCalendar.Id, calendarName)
+	updatedCalendar, err := serviceImpl.UpdateCalendar(testService, testCalendar.Id, calendarName)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	a.Equal(updatedCalendar.Summary, calendarName, "Updated calendar should reflect changed name")
 
-	eventList := ListEvents(srv, updatedCalendar.Id)
+	eventList, err := serviceImpl.ListEvents(testService, updatedCalendar.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	for _, evt := range eventList {
 		a.Equal(evt.Summary, updatedCalendar.Summary, "Calendar events should reflect changed name")
 	}
 }
 
-func CleanUp() {
+func SetupServiceTest() {
+	ctx := context.TODO()
+	client := serviceImpl.GetClient(ctx)
+	testService = serviceImpl.BuildService(client)
+}
+
+func TeardownServiceTest() {
 	log.Println("Cleaning up...")
 	for _, calendarID := range calendars {
-		DeleteCalendar(srv, calendarID)
+		serviceImpl.DeleteCalendar(testService, calendarID)
 		log.Printf("Deleted %s", calendarID)
 
 	}
-}
-
-func TestMain(m *testing.M) {
-	ctx := context.TODO()
-	client := GetClient(ctx)
-	srv = BuildService(client)
-	result := m.Run()
-	CleanUp()
-	os.Exit(result)
 }
 
 func RandDateRange() (time.Time, time.Time) {

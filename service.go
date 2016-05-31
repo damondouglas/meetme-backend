@@ -12,6 +12,21 @@ import (
 	// "google.golang.org/appengine"
 )
 
+type service interface {
+	GetClient(ctx context.Context) *http.Client
+	BuildService(client *http.Client) *calendar.Service
+	CreateCalendar(srv *calendar.Service, name string) (*calendar.Calendar, error)
+	InsertEvent(srv *calendar.Service, cal *calendar.Calendar, dateRange *DateRange) (*calendar.Event, error)
+	ListEvents(srv *calendar.Service, calendarID string) ([]*calendar.Event, error)
+	ListCalendars(srv *calendar.Service) ([]*calendar.CalendarListEntry, error)
+	DeleteCalendar(srv *calendar.Service, calendarID string) error
+	GetCalendar(srv *calendar.Service, calendarID string) (*calendar.Calendar, error)
+	UpdateEvent(srv *calendar.Service, calendarID string, eventID string, name string, dateRange ...*DateRange) (*calendar.Event, error)
+	UpdateCalendar(srv *calendar.Service, calendarID string, summary string) (*calendar.Calendar, error)
+}
+
+type serviceimpl struct{}
+
 // DateRange is a range from [Start] to [End]
 type DateRange struct {
 	Start string `json:"dateTime,omitempty"`
@@ -19,7 +34,7 @@ type DateRange struct {
 }
 
 // GetClient builds OAuth2 Client
-func GetClient(ctx context.Context) *http.Client {
+func (s serviceimpl) GetClient(ctx context.Context) *http.Client {
 
 	data, err := ioutil.ReadFile("cred.json")
 	if err != nil {
@@ -38,7 +53,7 @@ func GetClient(ctx context.Context) *http.Client {
 }
 
 // BuildService builds calendar service
-func BuildService(client *http.Client) *calendar.Service {
+func (s serviceimpl) BuildService(client *http.Client) *calendar.Service {
 	srv, err := calendar.New(client)
 	if err != nil {
 		log.Fatal(err)
@@ -47,18 +62,19 @@ func BuildService(client *http.Client) *calendar.Service {
 }
 
 // CreateCalendar in service account
-func CreateCalendar(srv *calendar.Service, name string) *calendar.Calendar {
+func (s serviceimpl) CreateCalendar(srv *calendar.Service, name string) (*calendar.Calendar, error) {
 	cal := &calendar.Calendar{Summary: name}
 	calRes, err := srv.Calendars.Insert(cal).Do()
 	if err != nil {
 		log.Fatal(err)
+		return nil, err
 	}
-	return calRes
+	return calRes, nil
 }
 
 // InsertEvent in calendar
-// [start] and [end] is in rfc3339 string format
-func InsertEvent(srv *calendar.Service, cal *calendar.Calendar, dateRange *DateRange) *calendar.Event {
+// [start] and [end] must be rfc3339 string format
+func (s serviceimpl) InsertEvent(srv *calendar.Service, cal *calendar.Calendar, dateRange *DateRange) (*calendar.Event, error) {
 	evt := new(calendar.Event)
 	evt.Summary = cal.Summary
 	startDateTime := new(calendar.EventDateTime)
@@ -70,50 +86,57 @@ func InsertEvent(srv *calendar.Service, cal *calendar.Calendar, dateRange *DateR
 	evt, err := srv.Events.Insert(cal.Id, evt).Do()
 	if err != nil {
 		log.Fatal(err)
+		return nil, err
 	}
-	return evt
+	return evt, nil
 }
 
 // ListEvents lists calendar events
-func ListEvents(srv *calendar.Service, calendarID string) []*calendar.Event {
+func (s serviceimpl) ListEvents(srv *calendar.Service, calendarID string) ([]*calendar.Event, error) {
 	events, err := srv.Events.List(calendarID).Do()
 	if err != nil {
 		log.Fatal(err)
+		return nil, err
 	}
-	return events.Items
+	return events.Items, nil
 }
 
 // ListCalendars lists calendars in service account
-func ListCalendars(srv *calendar.Service) []*calendar.CalendarListEntry {
+func (s serviceimpl) ListCalendars(srv *calendar.Service) ([]*calendar.CalendarListEntry, error) {
 	calendarList, err := srv.CalendarList.List().Do()
 	if err != nil {
 		log.Fatal(err)
+		return nil, err
 	}
-	return calendarList.Items
+	return calendarList.Items, nil
 }
 
 // DeleteCalendar deletes calendar in service account
-func DeleteCalendar(srv *calendar.Service, calendarID string) {
+func (s serviceimpl) DeleteCalendar(srv *calendar.Service, calendarID string) error {
 	err := srv.Calendars.Delete(calendarID).Do()
 	if err != nil {
 		log.Fatal(err)
+		return err
 	}
+	return nil
 }
 
 // GetCalendar loads calendar from service account given calendarID
-func GetCalendar(srv *calendar.Service, calendarID string) *calendar.Calendar {
+func (s serviceimpl) GetCalendar(srv *calendar.Service, calendarID string) (*calendar.Calendar, error) {
 	cal, err := srv.Calendars.Get(calendarID).Do()
 	if err != nil {
 		log.Fatal(err)
+		return nil, err
 	}
-	return cal
+	return cal, nil
 }
 
 // UpdateEvent updates event data
-func UpdateEvent(srv *calendar.Service, calendarID string, eventID string, name string, dateRange ...*DateRange) *calendar.Event {
+func (s serviceimpl) UpdateEvent(srv *calendar.Service, calendarID string, eventID string, name string, dateRange ...*DateRange) (*calendar.Event, error) {
 	evt, err := srv.Events.Get(calendarID, eventID).Do()
 	if err != nil {
 		log.Fatal(err)
+		return nil, err
 	}
 	evt.Summary = name
 	if len(dateRange) > 0 {
@@ -124,14 +147,20 @@ func UpdateEvent(srv *calendar.Service, calendarID string, eventID string, name 
 	evt, err = srv.Events.Update(calendarID, eventID, evt).Do()
 	if err != nil {
 		log.Fatal(err)
+		return nil, err
 	}
 
-	return evt
+	return evt, nil
 }
 
 // UpdateCalendar updates calendar from service account given calendarID and new Summary
-func UpdateCalendar(srv *calendar.Service, calendarID string, summary string) *calendar.Calendar {
-	cal := GetCalendar(srv, calendarID)
+func (s serviceimpl) UpdateCalendar(srv *calendar.Service, calendarID string, summary string) (*calendar.Calendar, error) {
+	cal, err := s.GetCalendar(srv, calendarID)
+
+	if err != nil {
+		log.Fatal(err)
+		return nil, err
+	}
 
 	if cal != nil {
 		cal.Summary = summary
@@ -139,13 +168,22 @@ func UpdateCalendar(srv *calendar.Service, calendarID string, summary string) *c
 		cal = updatedCal
 		if err != nil {
 			log.Fatal(err)
+			return nil, err
 		}
 
-		eventList := ListEvents(srv, cal.Id)
+		eventList, err := s.ListEvents(srv, cal.Id)
+		if err != nil {
+			log.Fatal(err)
+			return nil, err
+		}
 		for _, evt := range eventList {
-			UpdateEvent(srv, cal.Id, evt.Id, summary)
+			_, err = s.UpdateEvent(srv, cal.Id, evt.Id, summary)
+			if err != nil {
+				log.Fatal(err)
+				return nil, err
+			}
 		}
 	}
 
-	return cal
+	return cal, nil
 }
